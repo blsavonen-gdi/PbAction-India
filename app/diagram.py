@@ -815,30 +815,138 @@ def _render_node_detail(node: dict, state: dict) -> None:
 def _render_line_graph(state: dict) -> None:
     chain = state["chain"]; arr = state["arr"]
     years = arr["year"]
+    # Major chain flows only — anchors (USGS, INSTALL_target) intentionally omitted
+    # so the curves don't crowd. The anchors are in §4 of the Diagnostics tab.
     series = [
-        ("COLLECT",            chain["COLLECT"],          "#FBC02D", "solid"),
-        ("BREAK_total",        chain["BREAK_total"],      "#9467bd", "solid"),
-        ("SMELT_total",        chain["SMELT_total"],      "#8c564b", "solid"),
-        ("REFINE_SEC_F",       chain["REFINE_SEC_F"],     "#d62728", "solid"),
-        ("USGS_sec (anchor)",  arr["sec_usgs"],           "#d62728", "dot"),
-        ("MFG_total",          chain["MFG_total"],        "#2ca02c", "solid"),
-        ("INSTALL_implied",    chain["INSTALL_implied"],  "#000000", "solid"),
-        ("INSTALL_target",     chain["INSTALL_target"],   "#000000", "dot"),
+        ("COLLECT",         chain["COLLECT"],          "#FBC02D"),
+        ("BREAK_total",     chain["BREAK_total"],      "#9467bd"),
+        ("SMELT_total",     chain["SMELT_total"],      "#8c564b"),
+        ("REFINE_SEC_F",    chain["REFINE_SEC_F"],     "#d62728"),
+        ("MFG_total",       chain["MFG_total"],        "#2ca02c"),
+        ("INSTALL_implied", chain["INSTALL_implied"],  "#000000"),
     ]
     fig = go.Figure()
-    for name, vec, color, dash in series:
+    for name, vec, color in series:
         fig.add_trace(go.Scatter(
             x=years, y=vec, mode="lines+markers", name=name,
-            line=dict(color=color, width=2, dash=dash),
+            line=dict(color=color, width=2),
             hovertemplate=f"{name}<br>%{{x}}: %{{y:,.0f}} t Pb<extra></extra>",
         ))
+    # Force x-axis to sit at the bottom of the plotting area (not at y=0 inside).
     fig.update_layout(
-        height=380, margin=dict(l=40, r=20, t=30, b=40),
-        xaxis_title="Year", yaxis_title="t Pb / yr",
-        legend=dict(orientation="h", y=-0.20, x=0.0),
-        title="Major process steps — fit window",
+        height=420,
+        margin=dict(l=50, r=20, t=50, b=120),
+        title=dict(text="Major process steps — fit window", x=0, xanchor="left"),
+        xaxis=dict(
+            title=dict(text="Year", standoff=12),
+            tickmode="array",
+            tickvals=[int(y) for y in years],
+            ticktext=[str(int(y)) for y in years],
+            anchor="free", position=0,  # axis line at the bottom of the plot
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title=dict(text="t Pb / yr"),
+            zeroline=False,
+            rangemode="tozero",
+        ),
+        legend=dict(orientation="h", yanchor="top", y=-0.20, x=0.0),
     )
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+
+
+# ============================================================================
+# Per-step flow table (collapsible, with CSV export)
+# ============================================================================
+
+# Columns for the export — covers every node in the diagram + the anchor pair.
+FLOW_TABLE_COLUMNS = [
+    ("RETIRE",            "RETIRE",           "chain"),
+    ("COLLECT",           "COLLECT",          "chain"),
+    ("imp_used (854810)", "imp_used",         "arr"),
+    ("exp_used (854810)", "exp_used",         "arr"),
+    ("in_break_F",        "in_break_F",       "chain"),
+    ("in_break_I",        "in_break_I",       "chain"),
+    ("out_break_F",       "out_break_F",      "chain"),
+    ("out_break_I",       "out_break_I",      "chain"),
+    ("BREAK_total",       "BREAK_total",      "chain"),
+    ("imp_scrap (780200)","imp_scrap",        "arr"),
+    ("exp_scrap (780200)","exp_scrap",        "arr"),
+    ("scrap_total",       "scrap_total",      "chain"),
+    ("in_smelt_F",        "in_smelt_F",       "chain"),
+    ("in_smelt_I",        "in_smelt_I",       "chain"),
+    ("out_smelt_F",       "out_smelt_F",      "chain"),
+    ("out_smelt_I",       "out_smelt_I",      "chain"),
+    ("SMELT_total",       "SMELT_total",      "chain"),
+    ("imp_crude (780199)","imp_crude",        "arr"),
+    ("exp_crude (780199)","exp_crude",        "arr"),
+    ("crude_total",       "crude_total",      "chain"),
+    ("in_refine_F",       "in_refine_F",      "chain"),
+    ("in_refine_I",       "in_refine_I",      "chain"),
+    ("REFINE_SEC_F",      "REFINE_SEC_F",     "chain"),
+    ("REFINE_SEC_I",      "REFINE_SEC_I",     "chain"),
+    ("REFINE_SEC_total",  "REFINE_SEC_total", "chain"),
+    ("REFINE_PRIMARY (USGS)", "REFINE_PRIMARY","chain"),
+    ("imp_feed",          "imp_feed",         "arr"),
+    ("exp_feed",          "exp_feed",         "arr"),
+    ("refined_total",     "refined_total",    "chain"),
+    ("imp_parts (850790)","imp_parts",        "arr"),
+    ("exp_parts (850790)","exp_parts",        "arr"),
+    ("NET_PARTS",         "NET_PARTS",        "chain"),
+    ("in_mfg_F",          "in_mfg_F",         "chain"),
+    ("in_mfg_I",          "in_mfg_I",         "chain"),
+    ("MFG_F",             "MFG_F",            "chain"),
+    ("MFG_I",             "MFG_I",            "chain"),
+    ("MFG_total",         "MFG_total",        "chain"),
+    ("imp_batt (850710+850720)", "imp_batt",  "arr"),
+    ("exp_batt (850710+850720)", "exp_batt",  "arr"),
+    ("INSTALL_implied",   "INSTALL_implied",  "chain"),
+    ("INSTALL_target",    "INSTALL_target",   "chain"),
+    ("dStock",            "dStock",           "chain"),
+    ("xover_smelt",       "xover_smelt",      "chain"),
+    ("xover_refine",      "xover_refine",     "chain"),
+    ("xover_mfg",         "xover_mfg",        "chain"),
+    ("USGS secondary",    "sec_usgs",         "arr"),
+    ("USGS primary",      "prim_usgs",        "arr"),
+]
+
+
+def _build_flow_dataframe(state: dict) -> pd.DataFrame:
+    """Long-format DataFrame: rows = process steps, columns = years.
+
+    Numbers in tonnes of contained Pb. Used for both display and CSV export.
+    """
+    chain = state["chain"]; arr = state["arr"]
+    years = [int(y) for y in arr["year"]]
+    rows = []
+    for label, key, src in FLOW_TABLE_COLUMNS:
+        vec = (chain.get(key) if src == "chain" else arr.get(key))
+        if vec is None:
+            continue
+        row = {"Step": label}
+        for i, y in enumerate(years):
+            row[str(y)] = float(vec[i])
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _render_flow_table(state: dict) -> None:
+    df = _build_flow_dataframe(state)
+    years = [c for c in df.columns if c != "Step"]
+    # Pretty-print with thousands separators for the on-screen view
+    df_disp = df.copy()
+    for y in years:
+        df_disp[y] = df_disp[y].map(lambda v: f"{v:,.0f}")
+    st.dataframe(df_disp, hide_index=True, use_container_width=True)
+
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download CSV",
+        data=csv_bytes,
+        file_name="india_per_step_flows.csv",
+        mime="text/csv",
+        help="Per-step volumes for every year in the fit window, in tonnes of contained Pb.",
+    )
 
 
 # ============================================================================
@@ -847,7 +955,7 @@ def _render_line_graph(state: dict) -> None:
 
 def render() -> None:
     state = compute_state()
-    chain = state["chain"]; arr = state["arr"]
+    arr = state["arr"]
 
     st.markdown("### System flow — parallel formal/informal chain")
     st.caption(
@@ -865,37 +973,40 @@ def render() -> None:
             index=len(years) - 1, key="diagram_year",
         ))
 
-    # Two-column layout: diagram | detail
-    diag_col, detail_col = st.columns([3, 2])
+    # ----- Flow diagram (full width) ---------------------------------------
+    html = _react_flow_html(state, year, height=640)
+    components.html(html, height=660, scrolling=False)
 
-    with diag_col:
-        # Primary: React Flow embedded via CDN (no PyPI dep). Always tried.
-        html = _react_flow_html(state, year, height=620)
-        components.html(html, height=640, scrolling=False)
+    with st.expander("Static Plotly diagram (fallback / printable view)",
+                     expanded=False):
+        fig = _plotly_diagram(state, year)
+        st.plotly_chart(fig, use_container_width=True, theme="streamlit",
+                        config={"displayModeBar": False})
 
-        # Fallback Plotly diagram (always rendered below, useful as a static
-        # reference and as a backup if the iframe can't reach esm.sh).
-        with st.expander("Static Plotly diagram (fallback / printable view)",
-                         expanded=False):
-            fig = _plotly_diagram(state, year)
-            st.plotly_chart(fig, use_container_width=True, theme="streamlit",
-                            config={"displayModeBar": False})
-        selected_id = None  # iframe is one-way; detail panel uses the selectbox.
+    # ----- Node detail (full width, BELOW the diagram) ---------------------
+    st.divider()
+    st.markdown("##### Node detail")
+    node_choices = [n["id"] for n in NODES]
+    chosen = st.selectbox(
+        "Pick a node", options=node_choices,
+        index=node_choices.index("install_implied"),
+        key="diagram_node",
+        format_func=lambda i: next(n["label"].replace("\n", " — ")
+                                   for n in NODES if n["id"] == i),
+    )
+    node = next(n for n in NODES if n["id"] == chosen)
+    _render_node_detail(node, state)
 
-    with detail_col:
-        # Selectbox always works regardless of click events
-        node_choices = [n["id"] for n in NODES]
-        default_idx = (node_choices.index(selected_id)
-                       if (selected_id and selected_id in node_choices)
-                       else node_choices.index("install_implied"))
-        chosen = st.selectbox(
-            "Node detail", options=node_choices,
-            index=default_idx, key="diagram_node",
-            format_func=lambda i: next(n["label"].replace("\n", " — ")
-                                       for n in NODES if n["id"] == i),
-        )
-        node = next(n for n in NODES if n["id"] == chosen)
-        _render_node_detail(node, state)
-
+    # ----- Line graph ------------------------------------------------------
     st.divider()
     _render_line_graph(state)
+
+    # ----- Per-step flow table (collapsible, with CSV export) --------------
+    st.divider()
+    with st.expander("Per-step flow table (all values, CSV export)",
+                     expanded=False):
+        st.caption(
+            "Every per-step quantity for every year in the fit window, in tonnes "
+            "of contained lead. Use the **Download CSV** button to export."
+        )
+        _render_flow_table(state)
