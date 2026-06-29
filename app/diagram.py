@@ -676,14 +676,6 @@ def render() -> None:
         elif lib_name == "streamlit_flow_component":
             selected_id, rendered = _flow_diagram_chrisdelclea(state, year, ns)
         if not rendered:
-            if lib_name is None:
-                st.info(
-                    "Static Plotly diagram. To switch to an interactive React-Flow "
-                    "view, install `streamlit-flow-swc` (preferred) or "
-                    "`streamlit-flow-component`. The Plotly diagram below matches "
-                    "the PDF topology either way.",
-                    icon="ℹ️",
-                )
             fig = _plotly_diagram(state, year)
             st.plotly_chart(fig, use_container_width=True, theme="streamlit",
                             config={"displayModeBar": False})
