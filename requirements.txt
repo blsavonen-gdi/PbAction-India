@@ -3,9 +3,10 @@ pandas>=2.0
 numpy>=1.24
 plotly>=5.18
 scipy>=1.10
-# Diagram libraries — the app tries each in turn and falls back to Plotly.
-# streamlit-flow-swc is the more actively-maintained successor; the legacy
-# streamlit-flow-component is kept as a fallback in case streamlit-flow-swc
-# is unavailable on the deployment target.
-streamlit-flow-swc>=0.3
-streamlit-flow-component>=0.0.2
+
+# Optional: interactive React-Flow diagram on Tab 1. The Plotly fallback in
+# app/diagram.py is a faithful match for the PDF topology, so the app is
+# fully usable without these. Uncomment ONE to enable the interactive view.
+#
+# streamlit-flow-component   # ChrisDelClea (PyPI), legacy 0.0.2 (2023)
+# streamlit-flow             # if it ever lands on PyPI under this name
