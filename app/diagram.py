@@ -11,21 +11,25 @@ and the "(1-β) non-battery" off-take sit at the refined-pool level (between
 REFINE and MFG). USGS-secondary is a one-sided floor on REFINE_SEC_F. The
 Installation node feeds back into Stock (closed loop).
 
-The diagram tries two streamlit React-Flow wrappers in order:
-    1. streamlit_flow      (active fork — streamlit-flow-swc on PyPI)
-    2. streamlit_flow_component (the older ChrisDelClea library)
-If neither is installed or both fail, falls back to a styled Plotly diagram
-with the same node positions and edge styling. Either way, a year selector
-above the diagram changes the per-node volumes, and the right-hand panel
-shows the selected node's equation + per-year values + assumptions.
+The diagram is rendered as an embedded **React Flow** view loaded from esm.sh
+inside an `st.components.v1.html` iframe — no PyPI dependency, drag/zoom/hover
+work natively. Node detail (formula, variables, assumptions) is driven from
+the selectbox in the right column (the iframe is one-way — click events can't
+round-trip back to Python without a custom Streamlit component).
+
+A static Plotly diagram with the same topology remains available as a fallback
+(see `_plotly_diagram`).
 """
 
 from __future__ import annotations
+
+import json
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from app.state import compute_state
 
@@ -449,7 +453,204 @@ def _plotly_diagram(state: dict, year: int) -> go.Figure:
 
 
 # ============================================================================
-# streamlit-flow library — try variants
+# React Flow embed via CDN (st.components.v1.html iframe)
+# ============================================================================
+
+# Lane η lookup keys
+ETA_LOOKUP = {
+    "break_F": "eta_break_F", "smelt_F": "eta_smelt_F",
+    "refine_F": "eta_refine_F", "mfg_F": "eta_mfg_F",
+    "break_I": "eta_break_I", "smelt_I": "eta_smelt_I",
+    "refine_I": "eta_refine_I", "mfg_I": "eta_mfg_I",
+}
+
+# Per-node colour styling for the React Flow render
+NODE_COLOURS = {
+    "collect":  ("#FBC02D", "#000"),
+    "formal":   ("#1f77b4", "#fff"),
+    "informal": ("#ff7f0e", "#fff"),
+    "install":  ("#2ca02c", "#fff"),
+    "trade":    ("#E8F5E9", "#1b5e20"),
+    "anchor":   ("#E0E0E0", "#333"),
+}
+
+EDGE_COLOURS = {
+    "domestic":    "#333",
+    "crossover":   "#9c27b0",
+    "trade":       "#2e7d32",
+    "anchor":      "#666",
+    "closed_loop": "#666",
+}
+
+
+def _build_react_flow_payload(state: dict, year: int) -> tuple[list, list]:
+    """Return (nodes, edges) in React Flow's JSON shape."""
+    chain = state["chain"]; arr = state["arr"]; etas = state["etas"]
+
+    rf_nodes = []
+    for n in NODES:
+        x, y = n["pos"]
+        vol = _node_volume_at_year(n, chain, arr, year)
+        bg, fg = NODE_COLOURS.get(n["kind"], ("#888", "#fff"))
+        eta_line = ""
+        if n["id"] in ETA_LOOKUP:
+            sym = "η_F" if n["kind"] == "formal" else "η_I"
+            eta_line = f"\n{sym} = {etas[ETA_LOOKUP[n['id']]]:.2f}"
+        vol_line = f"\n{_fmt_kt(vol)}" if vol is not None else ""
+        label_text = f"{n['label']}{eta_line}{vol_line}"
+        # Border colour signals the lane
+        border = {
+            "formal":   "#1565c0",
+            "informal": "#e65100",
+            "collect":  "#f9a825",
+            "install":  "#1b5e20",
+            "trade":    "#2e7d32",
+            "anchor":   "#666",
+        }.get(n["kind"], "#222")
+        # Node shape — circles for anchors / collect / install, rounded boxes for stages
+        border_radius = "50%" if n["kind"] in ("collect", "install", "anchor") else "10px"
+        rf_nodes.append({
+            "id":   n["id"],
+            "type": "default",
+            "position": {"x": int(x * 200), "y": int(y * 130) + 220},  # +220 to give top trade row room
+            "data": {"label": label_text},
+            "style": {
+                "background": bg,
+                "color":      fg,
+                "border":     f"2px solid {border}",
+                "borderRadius": border_radius,
+                "width":      160,
+                "height":     "auto",
+                "fontSize":   "11px",
+                "padding":    "8px",
+                "whiteSpace": "pre-wrap",
+                "textAlign":  "center",
+                "lineHeight": "1.25",
+            },
+            "draggable": True,
+        })
+
+    rf_edges = []
+    for src, tgt, kind in EDGES:
+        stroke = EDGE_COLOURS.get(kind, "#333")
+        dasharray = "6 4" if kind in ("crossover", "anchor") else None
+        rf_edges.append({
+            "id":      f"{src}-{tgt}",
+            "source":  src,
+            "target":  tgt,
+            "type":    "smoothstep",
+            "animated": (kind == "domestic"),
+            "style":   {"stroke": stroke,
+                        **({"strokeDasharray": dasharray} if dasharray else {})},
+            "markerEnd": {"type": "arrowclosed", "color": stroke},
+        })
+    return rf_nodes, rf_edges
+
+
+def _react_flow_html(state: dict, year: int, height: int = 620) -> str:
+    """Self-contained HTML page that loads React Flow from esm.sh and renders
+    the diagram. Embed via `st.components.v1.html(html, height=...)`."""
+    rf_nodes, rf_edges = _build_react_flow_payload(state, year)
+    nodes_json = json.dumps(rf_nodes)
+    edges_json = json.dumps(rf_edges)
+    # Importmap-based ESM loader (esm.sh). React Flow CSS is loaded as a
+    # stylesheet via the same CDN. Pinned to v11 (stable; v12 introduced
+    # breaking API changes).
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>India parallel chain — React Flow</title>
+  <link rel="stylesheet" href="https://esm.sh/reactflow@11.11.4/dist/style.css">
+  <style>
+    html, body {{ margin: 0; padding: 0; height: 100%;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                               Roboto, sans-serif; }}
+    #app   {{ width: 100%; height: {height}px; }}
+    .react-flow__node {{ box-shadow: 0 1px 3px rgba(0,0,0,0.12); }}
+    .lane-label {{
+      position: absolute; left: 8px; padding: 4px 8px; font-weight: 600;
+      font-size: 12px; border-radius: 4px; z-index: 10;
+      background: rgba(255,255,255,0.85);
+    }}
+    .lane-label.formal   {{ top: 220px; color: #1565c0; }}
+    .lane-label.informal {{ top: 350px; color: #e65100; }}
+    .fallback {{ padding: 20px; color: #b71c1c; font-family: sans-serif; }}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="fallback" id="fallback">
+      Loading React Flow from esm.sh…<br>
+      <small>If this message stays, the network is blocking esm.sh — the
+      Plotly fallback diagram is below the iframe.</small>
+    </div>
+  </div>
+  <div class="lane-label formal">FORMAL</div>
+  <div class="lane-label informal">INFORMAL</div>
+  <script type="importmap">
+  {{
+    "imports": {{
+      "react":             "https://esm.sh/react@18.3.1",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "react-dom":         "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client":  "https://esm.sh/react-dom@18.3.1/client",
+      "reactflow":         "https://esm.sh/reactflow@11.11.4?deps=react@18.3.1,react-dom@18.3.1"
+    }}
+  }}
+  </script>
+  <script type="module">
+    try {{
+      const React    = (await import("react")).default;
+      const ReactDOM = (await import("react-dom/client")).default;
+      const RF       = await import("reactflow");
+      const ReactFlow = RF.default;
+      const {{ Background, Controls, MiniMap }} = RF;
+
+      const nodes = {nodes_json};
+      const edges = {edges_json};
+
+      function App() {{
+        return React.createElement(
+          "div",
+          {{ style: {{ width: "100%", height: "{height}px" }} }},
+          React.createElement(
+            ReactFlow,
+            {{
+              defaultNodes: nodes,
+              defaultEdges: edges,
+              fitView: true,
+              fitViewOptions: {{ padding: 0.15 }},
+              minZoom: 0.3,
+              maxZoom: 2.5,
+              proOptions: {{ hideAttribution: true }},
+            }},
+            React.createElement(Background, {{ gap: 18, color: "#eee" }}),
+            React.createElement(Controls, {{ showInteractive: false }}),
+            React.createElement(MiniMap, {{
+              zoomable: true, pannable: true, nodeStrokeWidth: 2,
+              style: {{ background: "#fafafa" }}
+            }}),
+          )
+        );
+      }}
+
+      const root = ReactDOM.createRoot(document.getElementById("app"));
+      root.render(React.createElement(App));
+    }} catch (err) {{
+      document.getElementById("fallback").innerHTML =
+        "<b>React Flow failed to load.</b><br><small>"
+        + String(err) + "</small><br>"
+        + "<small>Reload the page; if the problem persists, "
+        + "the deploy's network may be blocking esm.sh.</small>";
+    }}
+  </script>
+</body>
+</html>"""
+
+
+# ============================================================================
+# Legacy streamlit-flow library detection (kept for future, currently unused)
 # ============================================================================
 
 def _try_flow_lib():
@@ -668,17 +869,18 @@ def render() -> None:
     diag_col, detail_col = st.columns([3, 2])
 
     with diag_col:
-        lib_name, ns = _try_flow_lib()
-        selected_id = None
-        rendered = False
-        if lib_name == "streamlit_flow":
-            selected_id, rendered = _flow_diagram_streamlit_flow(state, year, ns)
-        elif lib_name == "streamlit_flow_component":
-            selected_id, rendered = _flow_diagram_chrisdelclea(state, year, ns)
-        if not rendered:
+        # Primary: React Flow embedded via CDN (no PyPI dep). Always tried.
+        html = _react_flow_html(state, year, height=620)
+        components.html(html, height=640, scrolling=False)
+
+        # Fallback Plotly diagram (always rendered below, useful as a static
+        # reference and as a backup if the iframe can't reach esm.sh).
+        with st.expander("Static Plotly diagram (fallback / printable view)",
+                         expanded=False):
             fig = _plotly_diagram(state, year)
             st.plotly_chart(fig, use_container_width=True, theme="streamlit",
                             config={"displayModeBar": False})
+        selected_id = None  # iframe is one-way; detail panel uses the selectbox.
 
     with detail_col:
         # Selectbox always works regardless of click events
