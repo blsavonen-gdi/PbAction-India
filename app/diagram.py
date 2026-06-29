@@ -1063,12 +1063,6 @@ def render() -> None:
     html = _react_flow_html(state, year, height=640)
     components.html(html, height=660, scrolling=False)
 
-    with st.expander("Static Plotly diagram (fallback / printable view)",
-                     expanded=False):
-        fig = _plotly_diagram(state, year)
-        st.plotly_chart(fig, use_container_width=True, theme="streamlit",
-                        config={"displayModeBar": False})
-
     # ----- Node detail (full width, BELOW the diagram) ---------------------
     st.divider()
     st.markdown("##### Node detail")
@@ -1096,3 +1090,10 @@ def render() -> None:
             "of contained lead. Use the **Download CSV** button to export."
         )
         _render_flow_table(state)
+
+    # ----- Static Plotly diagram (fallback / printable view) ---------------
+    with st.expander("Static Plotly diagram (fallback / printable view)",
+                     expanded=False):
+        fig = _plotly_diagram(state, year)
+        st.plotly_chart(fig, use_container_width=True, theme="streamlit",
+                        config={"displayModeBar": False})

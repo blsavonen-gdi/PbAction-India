@@ -15,7 +15,7 @@ import streamlit as st
 
 # Page config first so other modules can call st.* freely
 st.set_page_config(
-    page_title="India Lead Mass-Balance",
+    page_title="Lead Material Flow Analysis v5 (India)",
     page_icon="🔋",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -26,13 +26,20 @@ from app import sidebar, controls, diagram, diagnostics, readme  # noqa: E402
 
 
 def main() -> None:
-    st.title("India Lead Mass-Balance — v5 parallel chain")
-    st.caption(
-        "Parallel formal/informal lanes through break, smelt, refine, and "
-        "manufacture. USGS secondary is a one-sided floor on formal refined "
-        "output. Use Tab 2 for stock/segments/k/τ/φ; use the sidebar for "
-        "process parameters (β, γ, η). Tab 4 carries the original toolkit's "
-        "diagnostics."
+    st.title("Lead Material Flow Analysis v5 (India)")
+    st.markdown(
+        "A material flow analysis of lead through India's battery cycle — "
+        "from retirement and collection through breaking, smelting, refining, "
+        "and manufacturing to installed stock. The chain is anchored to USGS "
+        "primary/secondary production and UN Comtrade customs flows, and "
+        "responds in real time to edits in the sidebar and Tab 2."
+    )
+    st.markdown("**What is unique about this version**")
+    st.markdown(
+        "- Parallel formal/informal lanes through break, smelt, refine, and manufacture.\n"
+        "- USGS secondary is a one-sided floor on formal refined output.\n"
+        "- Tab 2 carries stock / segments / k / τ / φ; the sidebar carries the process parameters (β, γ, η).\n"
+        "- Tab 4 carries the original toolkit's diagnostics."
     )
 
     sidebar.render()
