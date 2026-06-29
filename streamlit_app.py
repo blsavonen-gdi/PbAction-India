@@ -22,7 +22,7 @@ st.set_page_config(
 )
 
 # Import after set_page_config to keep streamlit happy
-from app import sidebar, controls, diagram, readme  # noqa: E402
+from app import sidebar, controls, diagram, diagnostics, readme  # noqa: E402
 
 
 def main() -> None:
@@ -31,15 +31,17 @@ def main() -> None:
         "Parallel formal/informal lanes through break, smelt, refine, and "
         "manufacture. USGS secondary is a one-sided floor on formal refined "
         "output. Use Tab 2 for stock/segments/k/τ/φ; use the sidebar for "
-        "process parameters (β, γ, η)."
+        "process parameters (β, γ, η). Tab 4 carries the original toolkit's "
+        "diagnostics."
     )
 
     sidebar.render()
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "1. Flow diagram",
         "2. Controls",
         "3. README",
+        "4. Diagnostics",
     ])
     with tab1:
         diagram.render()
@@ -47,6 +49,8 @@ def main() -> None:
         controls.render()
     with tab3:
         readme.render()
+    with tab4:
+        diagnostics.render()
 
 
 if __name__ == "__main__":

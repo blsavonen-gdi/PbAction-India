@@ -2,4 +2,10 @@ streamlit>=1.35
 pandas>=2.0
 numpy>=1.24
 plotly>=5.18
+scipy>=1.10
+# Diagram libraries — the app tries each in turn and falls back to Plotly.
+# streamlit-flow-swc is the more actively-maintained successor; the legacy
+# streamlit-flow-component is kept as a fallback in case streamlit-flow-swc
+# is unavailable on the deployment target.
+streamlit-flow-swc>=0.3
 streamlit-flow-component>=0.0.2
