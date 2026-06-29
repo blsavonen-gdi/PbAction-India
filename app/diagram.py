@@ -60,111 +60,178 @@ COL_STOCK   = 6
 CHAIN_NODES = [
     # Collection
     {
-        "id": "collect", "label": "Collection\n(retired batt.)",
+        "id": "collect", "label": "Collection\n(Retired Batteries)",
         "pos": (COL_COLLECT, (FORMAL_ROW + INFORMAL_ROW) / 2),
         "chain_key": "COLLECT", "kind": "collect",
+        "description":
+            "Retired batteries are gathered into a single domestic pool. "
+            "The formula multiplies retirement by γ because only some "
+            "retired batteries actually reach a collector — informal "
+            "scavenging, in-yard hoarding, and unrecorded resale divert "
+            "the rest. The formal/informal split doesn't happen here yet; "
+            "it happens at breaking.",
         "formula": r"\mathrm{COLLECT} = \gamma \cdot \mathrm{RETIRE}",
         "variables_keys": ["gamma"],
-        "assumptions": "Single shared pool. The formal/informal split happens at "
-                       "BREAK, not here. RETIRE comes from the stock-derived "
-                       "retirement engine (g, τ).",
+        "assumptions": "Single shared pool. RETIRE comes from the stock-"
+                       "derived retirement engine (g, τ).",
     },
     # Formal lane
     {
-        "id": "break_F", "label": "BREAK", "lane": "F",
+        "id": "break_F", "label": "Breaking (Formal)", "lane": "F",
         "pos": (COL_BREAK, FORMAL_ROW),
         "chain_key": "out_break_F", "kind": "formal",
+        "description":
+            "Regulated dismantling at licensed facilities with proper "
+            "acid containment and worker protection. The formula takes a "
+            "share φ_break_f of collected batteries PLUS all imported "
+            "used batteries (which clear formal customs), then multiplies "
+            "by δ (Pb remaining at end-of-life) and η_break_F (the formal "
+            "lane's recovery efficiency).",
         "formula": (r"\mathrm{in\_break}_F = \mathrm{COLLECT}\cdot\phi_{\mathrm{break}}^f"
                     r" + \Delta_{\mathrm{used}}"
                     r"\\ \mathrm{out\_break}_F = \mathrm{in\_break}_F \cdot \delta \cdot \eta_{\mathrm{break}}^F"),
         "variables_keys": ["phi_break_f", "delta", "eta_break_F"],
-        "assumptions": "Used-battery trade (854810) attaches to the formal break "
-                       "input only — USAID: external trade is virtually all formal.",
+        "assumptions": "Used-battery trade (HS 854810) attaches to the formal "
+                       "break input only — USAID notes external trade is "
+                       "virtually all formal.",
     },
     {
-        "id": "smelt_F", "label": "SMELT", "lane": "F",
+        "id": "smelt_F", "label": "Smelting (Formal)", "lane": "F",
         "pos": (COL_SMELT, FORMAL_ROW),
         "chain_key": "out_smelt_F", "kind": "formal",
+        "description":
+            "Regulated smelting reduces lead scrap to crude lead at "
+            "licensed smelters. The formula draws φ_smelt_f of the "
+            "combined (formal + informal) scrap pool, plus all imported "
+            "scrap. Because φ_smelt_f > φ_break_f by the USAID ordering, "
+            "the formal smelt lane pulls in more scrap than formal "
+            "breaking produces — the excess is informal-broken scrap "
+            "sold up into formal smelters (the implied crossover).",
         "formula": (r"\mathrm{scrap\_total} = \mathrm{out\_break}_F + \mathrm{out\_break}_I"
                     r" + \Delta_{\mathrm{scrap}}"
                     r"\\ \mathrm{out\_smelt}_F = (\mathrm{scrap\_total}\cdot\phi_{\mathrm{smelt}}^f)"
                     r"\cdot\eta_{\mathrm{smelt}}^F"),
         "variables_keys": ["phi_smelt_f", "eta_smelt_F"],
         "assumptions": "Implied informal → formal crossover at this boundary: "
-                       "in_smelt_F − out_break_F (see §4 crossover indicator).",
+                       "in_smelt_F − out_break_F (see Diagnostics §4).",
     },
     {
-        "id": "refine_F", "label": "REFINE", "lane": "F",
+        "id": "refine_F", "label": "Refining (Formal)", "lane": "F",
         "pos": (COL_REFINE, FORMAL_ROW),
         "chain_key": "REFINE_SEC_F", "kind": "formal",
+        "description":
+            "Regulated refining of crude lead to ≥99% purity. The "
+            "formula draws φ_refine_f of the combined crude pool, plus "
+            "all imported unrefined lead (HS 780199), and applies "
+            "η_refine_F. This is the quantity USGS anchors against as a "
+            "one-sided floor: the chain should meet or exceed the USGS "
+            "secondary-refining figure.",
         "formula": (r"\mathrm{crude\_total} = \mathrm{out\_smelt}_F + \mathrm{out\_smelt}_I"
                     r" + \Delta_{\mathrm{crude}}"
                     r"\\ \mathrm{REFINE\_SEC}_F = (\mathrm{crude\_total}\cdot\phi_{\mathrm{refine}}^f)"
                     r"\cdot\eta_{\mathrm{refine}}^F"),
         "variables_keys": ["phi_refine_f", "eta_refine_F"],
-        "assumptions": "**USGS secondary anchors REFINE_SEC_F as a one-sided floor.** "
-                       "Overshoot is expected = implied unrecorded refining.",
+        "assumptions": "USGS secondary refining anchors this quantity as a "
+                       "one-sided floor. Overshoot is expected and represents "
+                       "implied unrecorded refining.",
     },
     {
-        "id": "mfg_F", "label": "MFG", "lane": "F",
+        "id": "mfg_F", "label": "Manufacturing (Formal)", "lane": "F",
         "pos": (COL_MFG, FORMAL_ROW),
         "chain_key": "MFG_F", "kind": "formal",
+        "description":
+            "Regulated battery assembly. The formula draws φ_mfg_f of "
+            "the refined pool, multiplies by β (the share of refined "
+            "lead that goes to batteries — the rest goes to paints, "
+            "alloys, ammunition), and applies η_mfg_F. Battery parts "
+            "(HS 850790) are battery-committed and bypass β: they're "
+            "already destined for batteries, so the share discount "
+            "doesn't apply.",
         "formula": (r"\mathrm{refined\_total} = \mathrm{REFINE\_SEC}_F + \mathrm{REFINE\_SEC}_I"
-                    r" + \mathrm{PRIMARY}_{\mathrm{USGS}} + \Delta_{\mathrm{feed}}"
+                    r" + \mathrm{PRIMARY}_{\mathrm{mined}} + \Delta_{\mathrm{feed}}"
                     r"\\ \mathrm{MFG}_F = (\mathrm{refined\_total}\cdot\phi_{\mathrm{mfg}}^f)"
                     r"\cdot\beta\cdot\eta_{\mathrm{mfg}}^F + \mathrm{parts}^+\cdot\eta_{\mathrm{mfg}}^F"),
         "variables_keys": ["phi_mfg_f", "beta", "eta_mfg_F"],
-        "assumptions": "Battery parts (850790) bypass β; oxides (282410/282490) "
-                       "stay in FEED and remain subject to β. (1-β) leaves to "
-                       "non-battery uses.",
+        "assumptions": "Battery parts (HS 850790) bypass β. Oxides "
+                       "(HS 282410/282490) stay in FEED and remain subject to β.",
     },
     # Informal lane
     {
-        "id": "break_I", "label": "BREAK", "lane": "I",
+        "id": "break_I", "label": "Breaking (Informal)", "lane": "I",
         "pos": (COL_BREAK, INFORMAL_ROW),
         "chain_key": "out_break_I", "kind": "informal",
+        "description":
+            "Unregulated battery dismantling — typically backyard "
+            "operations with no acid containment and direct worker "
+            "exposure. The formula takes the (1 − φ_break_f) remainder "
+            "of the collected pool and applies the lower informal "
+            "recovery η_break_I. Trade does not enter here because "
+            "external imports flow through formal customs.",
         "formula": (r"\mathrm{in\_break}_I = \mathrm{COLLECT}\cdot(1-\phi_{\mathrm{break}}^f)"
                     r"\\ \mathrm{out\_break}_I = \mathrm{in\_break}_I \cdot \delta \cdot \eta_{\mathrm{break}}^I"),
         "variables_keys": ["phi_break_f", "delta", "eta_break_I"],
-        "assumptions": "Informal lane is purely domestic — no trade flows in or out.",
+        "assumptions": "Informal lane is purely domestic — no trade flows.",
     },
     {
-        "id": "smelt_I", "label": "SMELT", "lane": "I",
+        "id": "smelt_I", "label": "Smelting (Informal)", "lane": "I",
         "pos": (COL_SMELT, INFORMAL_ROW),
         "chain_key": "out_smelt_I", "kind": "informal",
+        "description":
+            "Unregulated smelting — typically in unsafe facilities with "
+            "no flue-gas scrubbing. The formula takes (1 − φ_smelt_f) "
+            "of the combined scrap pool and applies the much lower "
+            "informal η_smelt_I (0.60 vs 0.97 formal). Output joins the "
+            "shared crude pool.",
         "formula": r"\mathrm{out\_smelt}_I = (\mathrm{scrap\_total}\cdot(1-\phi_{\mathrm{smelt}}^f))\cdot\eta_{\mathrm{smelt}}^I",
         "variables_keys": ["phi_smelt_f", "eta_smelt_I"],
-        "assumptions": "Output joins the shared crude pool.",
+        "assumptions": "No trade flows.",
     },
     {
-        "id": "refine_I", "label": "REFINE", "lane": "I",
+        "id": "refine_I", "label": "Refining (Informal)", "lane": "I",
         "pos": (COL_REFINE, INFORMAL_ROW),
         "chain_key": "REFINE_SEC_I", "kind": "informal",
+        "description":
+            "Unregulated refining — typically smelters that also refine "
+            "without proper distillation columns. The formula takes "
+            "(1 − φ_refine_f) of the combined crude pool. Because USGS "
+            "does not see this output, any overshoot above USGS in the "
+            "formal lane is the implied informal-but-formal-equivalent "
+            "refined lead — this lane is its natural origin.",
         "formula": r"\mathrm{REFINE\_SEC}_I = (\mathrm{crude\_total}\cdot(1-\phi_{\mathrm{refine}}^f))\cdot\eta_{\mathrm{refine}}^I",
         "variables_keys": ["phi_refine_f", "eta_refine_I"],
-        "assumptions": "Informal refined Pb is NOT counted by USGS — it could be "
-                       "the explanation for any REFINE_SEC_F overshoot above USGS.",
+        "assumptions": "Informal refined Pb is NOT counted by USGS.",
     },
     {
-        "id": "mfg_I", "label": "MFG", "lane": "I",
+        "id": "mfg_I", "label": "Manufacturing (Informal)", "lane": "I",
         "pos": (COL_MFG, INFORMAL_ROW),
         "chain_key": "MFG_I", "kind": "informal",
+        "description":
+            "Unregulated battery assembly — typically small-scale "
+            "operations. The formula takes (1 − φ_mfg_f) of the refined "
+            "pool, β, and η_mfg_I. No parts bypass for the informal "
+            "lane; β applies fully.",
         "formula": r"\mathrm{MFG}_I = (\mathrm{refined\_total}\cdot(1-\phi_{\mathrm{mfg}}^f))\cdot\beta\cdot\eta_{\mathrm{mfg}}^I",
         "variables_keys": ["phi_mfg_f", "beta", "eta_mfg_I"],
-        "assumptions": "No parts bypass for the informal lane; β applies fully.",
+        "assumptions": "No parts bypass; β applies fully.",
     },
     # Installation (lanes rejoin)
     {
-        "id": "install_implied", "label": "Installation\n(in service)",
+        "id": "install_implied", "label": "Installation\n(Batteries Entering Service)",
         "pos": (COL_INSTALL, (FORMAL_ROW + INFORMAL_ROW) / 2),
         "chain_key": "INSTALL_implied", "kind": "install",
+        "description":
+            "Both lanes' manufactured batteries plus net finished-"
+            "battery imports become the installed stock. INSTALL_implied "
+            "is the chain's SUPPLY of new batteries entering service; "
+            "INSTALL_target (ΔStock + RETIRE) is the DEMAND derived from "
+            "the reported stock series — the two-sided install anchor "
+            "compares them.",
         "formula": (r"\mathrm{INSTALL\_implied} = \mathrm{MFG}_F + \mathrm{MFG}_I"
                     r" + \Delta_{\mathrm{batt}}"
                     r"\\ \mathrm{INSTALL\_target} = \Delta\mathrm{Stock} + \mathrm{RETIRE}"),
         "variables_keys": [],
-        "assumptions": "The lanes rejoin here — both formal and informal batteries "
-                       "are installed. INSTALL_implied vs INSTALL_target is the "
-                       "two-sided install anchor.",
+        "assumptions": "Formal and informal batteries are both installed "
+                       "(the lanes rejoin here).",
     },
 ]
 
@@ -172,92 +239,122 @@ CHAIN_NODES = [
 
 TRADE_NODES = [
     {
-        "id": "used_trade", "label": "imp/exp used batt.\n(854810)",
+        "id": "used_trade", "label": "Trade — Used Batteries\n(HS 854810)",
         "pos": (COL_BREAK, TRADE_ROW),
         "chain_key": None, "kind": "trade",
+        "description":
+            "Net imports of used (end-of-life) batteries. USAID treats "
+            "external trade as virtually all formal, so this attaches to "
+            "the formal breaking input — imported used batteries arrive "
+            "through legal customs and feed licensed breakers.",
         "formula": r"\Delta_{\mathrm{used}} = \mathrm{imp}_{854810} - \mathrm{exp}_{854810}",
         "variables_keys": [],
-        "assumptions": "Imported used batteries flow through legal customs into "
-                       "formal breakers (USAID: external trade ≈ all formal).",
+        "assumptions": "Formal-only by USAID convention.",
         "_attach": "break_F",
         "_chain_pair": ("imp_used", "exp_used"),
     },
     {
-        "id": "scrap_trade", "label": "imp/exp scrap\n(780200)",
+        "id": "scrap_trade", "label": "Trade — Lead Scrap\n(HS 780200)",
         "pos": (COL_SMELT, TRADE_ROW),
         "chain_key": None, "kind": "trade",
+        "description":
+            "Net imports of broken lead scrap (metallic Pb pieces from "
+            "battery breaking). Attaches to the formal scrap pool only — "
+            "the informal lane has no trade.",
         "formula": r"\Delta_{\mathrm{scrap}} = \mathrm{imp}_{780200} - \mathrm{exp}_{780200}",
         "variables_keys": [],
-        "assumptions": "Attaches to the formal scrap pool only.",
+        "assumptions": "Formal-only.",
         "_attach": "smelt_F",
         "_chain_pair": ("imp_scrap", "exp_scrap"),
     },
     {
-        "id": "crude_trade", "label": "imp/exp crude\n(780199)",
+        "id": "crude_trade", "label": "Trade — Unrefined Lead\n(HS 780199)",
         "pos": (COL_REFINE, TRADE_ROW),
         "chain_key": None, "kind": "trade",
+        "description":
+            "Net imports of lead 'unrefined, other' (HS 780199) — crude "
+            "lead from smelting that hasn't yet been refined to ≥99% "
+            "purity. Attaches at the formal refining input.",
         "formula": r"\Delta_{\mathrm{crude}} = \mathrm{imp}_{780199} - \mathrm{exp}_{780199}",
         "variables_keys": [],
-        "assumptions": "Lead, unrefined other — attaches between smelt and refine, formal-only.",
+        "assumptions": "Formal-only; attaches between smelt and refine.",
         "_attach": "refine_F",
         "_chain_pair": ("imp_crude", "exp_crude"),
     },
     {
-        "id": "feed_trade", "label": "imp/exp FEED + batt\n(780110/91, 282410/90, 8507x0)",
+        "id": "feed_trade", "label": "Trade — Refined Feed\n+ Finished Batteries",
         "pos": (COL_MFG, TRADE_ROW),
         "chain_key": None, "kind": "trade",
+        "description":
+            "Two flows bundled together. **Refined feed** (HS 780110, "
+            "780191, 282410, 282490) is refined-equivalent lead — pure "
+            "lead, antimonial lead, and lead oxides — that joins the "
+            "refined pool. **Finished batteries** (HS 850710 + 850720) "
+            "skip manufacturing entirely and add directly to the "
+            "installed stock.",
         "formula": (r"\Delta_{\mathrm{feed}} = \sum\mathrm{imp}_{\mathrm{FEED\,HS}} - \sum\mathrm{exp}_{\mathrm{FEED\,HS}}"
                     r"\\ \Delta_{\mathrm{batt}} = \mathrm{imp}_{8507\mathrm{x}0} - \mathrm{exp}_{8507\mathrm{x}0}"),
         "variables_keys": [],
-        "assumptions": "FEED enters the refined pool; finished batteries (850710 + 850720) "
-                       "skip MFG and add directly to installs.",
+        "assumptions": "Both formal-only.",
         "_attach": "mfg_F",
-        "_chain_pair": None,  # composite — computed inline in _node_volume_at_year
+        "_chain_pair": None,
     },
     {
-        "id": "primary_usgs", "label": "Primary Pb (USGS)\n(exogenous, formal)",
+        "id": "primary_usgs", "label": "Mined Primary Lead\n(from ore, not recycled)",
         "pos": (COL_REFINE + 0.5, TRADE_ROW + 0.3),
         "chain_key": "REFINE_PRIMARY", "kind": "trade",
-        "formula": r"\mathrm{REFINE\_PRIMARY}_{\mathrm{USGS}}",
+        "description":
+            "Freshly mined lead — pulled out of the ground from "
+            "domestic ore bodies (USGS-reported primary refined "
+            "production). This is **never been in a battery before**; "
+            "it's new lead entering the chain from mining, not recycled "
+            "lead. The formula is just the USGS primary figure; it's "
+            "exogenous to the chain.",
+        "formula": r"\mathrm{PRIMARY}_{\mathrm{mined}} = \mathrm{USGS\,primary\,refined}",
         "variables_keys": [],
-        "assumptions": "USGS-reported primary refined Pb. Treated as formal. Enters "
-                       "the refined pool BEFORE MFG (not at smelt — the PDF "
-                       "shows it conceptually near SMELT, but in code it joins "
-                       "the refined pool, which is mathematically equivalent).",
+        "assumptions": "Treated as formal. Joins the refined pool before "
+                       "manufacturing.",
         "_attach": "mfg_F",
     },
 ]
 
 # ---- anchors (not flows, just references) ----------------------------------
+# The USGS-anchor node was removed from the diagram per user request — the
+# USGS-as-floor relationship is described in the refine_F node's description
+# and tested numerically in Diagnostics §4.
 
 ANCHOR_NODES = [
     {
-        "id": "usgs_anchor", "label": "USGS = anchor\nfor FORMAL refined SEC",
-        "pos": (COL_REFINE, ANCHOR_ROW),
-        "chain_key": None, "kind": "anchor",
-        "formula": r"\mathrm{REFINE\_SEC}_F \;\ge\; \mathrm{USGS}_{\mathrm{sec}}",
-        "variables_keys": [],
-        "assumptions": "One-sided floor: chain must produce at least USGS secondary "
-                       "from the formal lane. Overshoot is expected and represents "
-                       "the implied unrecorded refined Pb.",
-    },
-    {
-        "id": "nonbatt", "label": "Non-battery uses\n(1 − β)",
+        "id": "nonbatt", "label": "Non-Battery Uses\n((1 − β) of refined feed)",
         "pos": (COL_MFG - 0.5, ANCHOR_ROW),
         "chain_key": None, "kind": "anchor",
+        "description":
+            "The (1 − β) share of refined feed that goes to non-battery "
+            "uses — paints, alloys, ammunition, cable sheathing. β is "
+            "applied INSIDE the manufacturing formal/informal lanes, so "
+            "the (1 − β) is what doesn't make it into batteries. Not "
+            "tracked further in this model.",
         "formula": r"\mathrm{NB} = \mathrm{refined\_total}\cdot(1-\beta)\,\cdot\,(\text{never tracked further})",
         "variables_keys": ["beta"],
-        "assumptions": "(1-β) of refined-feed is allocated to non-battery uses (paints, "
-                       "alloys, ammunition, etc.). Not tracked further in this model.",
+        "assumptions": "Information-only sink in the diagram.",
     },
     {
-        "id": "stock", "label": "In service / Stock\nΔStock + RETIRE",
+        "id": "stock", "label": "Lead in Service\n(Installed Stock)",
         "pos": (COL_STOCK, ANCHOR_ROW + 0.8),
         "chain_key": None, "kind": "anchor",
-        "formula": r"\mathrm{stock}_{\mathrm{eff}}(t) = k \cdot \mathrm{stock}(t)",
+        "description":
+            "The pool of lead currently installed in batteries in "
+            "service. This is the closed-loop anchor: the chain installs "
+            "new batteries into this stock, the stock ages, and a share "
+            "retires each year and re-enters the chain through "
+            "collection. INSTALL_target is the install demand the stock "
+            "series implies.",
+        "formula": (r"\mathrm{stock}_{\mathrm{eff}}(t) = k \cdot \mathrm{stock}(t)"
+                    r"\\ \mathrm{INSTALL\_target} = \Delta\mathrm{Stock} + \mathrm{RETIRE}"),
         "variables_keys": ["k", "tau"],
-        "assumptions": "Stock series from `India_Installed` (USAID-derived). "
-                       "Closed loop: Installation → Stock → retire → Collection.",
+        "assumptions": "Stock series constructed bottom-up from vehicle-fleet "
+                       "data; field validation is the highest-priority refinement "
+                       "(see README §6).",
     },
 ]
 
@@ -297,8 +394,7 @@ EDGES = [
     ("primary_usgs", "mfg_F",    "trade"),
 
     # Anchors (grey dotted)
-    ("usgs_anchor", "refine_F", "anchor"),
-    ("nonbatt",     "mfg_F",    "anchor"),
+    ("nonbatt", "mfg_F", "anchor"),
 
     # Closed loop
     ("install_implied", "stock", "closed_loop"),
@@ -782,6 +878,12 @@ def _render_node_detail(node: dict, state: dict) -> None:
     chain = state["chain"]; arr = state["arr"]
     st.markdown(f"### {node['label'].replace(chr(10), ' — ')}")
     st.caption(f"id: `{node['id']}` · kind: `{node['kind']}`")
+
+    # Plain-English description: what this step is and why the formula has its
+    # form. Rendered prominently as the first thing under the title.
+    description = node.get("description")
+    if description:
+        st.markdown(f"**What this is.** {description}")
 
     st.markdown("**Formula**")
     st.latex(node["formula"])
