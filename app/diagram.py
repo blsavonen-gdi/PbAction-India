@@ -488,23 +488,9 @@ def _plotly_diagram(state: dict, year: int) -> go.Figure:
         kind = n["kind"]
         style = _kind_style(kind)
         vol = _node_volume_at_year(n, chain, arr, year)
-        # Build a multi-line label: name + (lane η if applicable) + volume
-        eta_line = ""
-        if kind == "formal":
-            mapping = {"break_F": "eta_break_F", "smelt_F": "eta_smelt_F",
-                       "refine_F": "eta_refine_F", "mfg_F": "eta_mfg_F"}
-            k_ = mapping.get(n["id"])
-            if k_:
-                eta_line = f"η_F = {etas[k_]:.2f}"
-        elif kind == "informal":
-            mapping = {"break_I": "eta_break_I", "smelt_I": "eta_smelt_I",
-                       "refine_I": "eta_refine_I", "mfg_I": "eta_mfg_I"}
-            k_ = mapping.get(n["id"])
-            if k_:
-                eta_line = f"η_I = {etas[k_]:.2f}"
+        # Label = name + volume. η values are intentionally NOT shown on the
+        # diagram — they live in the sidebar and in each node's detail panel.
         body = n["label"]
-        if eta_line:
-            body = f"{body}<br><i>{eta_line}</i>"
         if vol is not None:
             body = f"{body}<br><b>{_fmt_kt(vol)}</b>"
         # ellipse for collect/install/anchors, rectangle for chain stages
@@ -588,12 +574,10 @@ def _build_react_flow_payload(state: dict, year: int) -> tuple[list, list]:
         x, y = n["pos"]
         vol = _node_volume_at_year(n, chain, arr, year)
         bg, fg = NODE_COLOURS.get(n["kind"], ("#888", "#fff"))
-        eta_line = ""
-        if n["id"] in ETA_LOOKUP:
-            sym = "η_F" if n["kind"] == "formal" else "η_I"
-            eta_line = f"\n{sym} = {etas[ETA_LOOKUP[n['id']]]:.2f}"
+        # η values are intentionally NOT shown on the diagram — they live
+        # in the sidebar and in each node's detail panel.
         vol_line = f"\n{_fmt_kt(vol)}" if vol is not None else ""
-        label_text = f"{n['label']}{eta_line}{vol_line}"
+        label_text = f"{n['label']}{vol_line}"
         # Border colour signals the lane
         border = {
             "formal":   "#1565c0",
