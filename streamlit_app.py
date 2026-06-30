@@ -47,7 +47,7 @@ def main() -> None:
     tab1, tab2, tab3, tab4 = st.tabs([
         "1. Flow diagram",
         "2. Controls",
-        "3. README",
+        "3. Read Me",
         "4. Diagnostics",
     ])
     with tab1:

@@ -3,19 +3,23 @@
 
 **A parallel formal/informal accounting of lead flows through India's lead-acid battery economy, 2018–2023**
 
-*Draft — proof of concept · Prepared for external technical review*
+*Draft working paper — not for external distribution · Internal working document*
 
-> This is an early-stage model built on publicly available data and literature-derived assumptions. Several key parameters are first approximations intended to be replaced with field-collected data. The model is structured so that better inputs can be substituted without redesign; identifying which assumptions most require field validation is one of its central purposes.
+> This is an early-stage model built on publicly available data and literature-derived assumptions. Several key parameters are first approximations / rough estimates intended to be replaced with field-collected data. The model is structured so that better inputs can be substituted without redesign; identifying which assumptions most require field validation is one of its central purposes.
 
 ---
 
 ## 1. Purpose and scope
 
-This document describes a country-level mass-balance model of lead flows through India's lead-acid battery (LAB) economy, covering the years 2018–2023. The model's purpose is **market-structure characterization**: understanding the scale of formal versus informal processing, identifying where unverified lead enters the chain, and testing whether domestic production reconciles with reported trade and refining statistics. It is *not* intended to produce precise tonnage estimates. Its outputs are best read as ranges and structural diagnostics rather than point figures.
+This document describes a country-level mass-balance model of lead flows through India's lead-acid battery (LAB) economy, covering the years 2018–2023. The model's purpose is **market-structure characterization**: understanding the scale of formal versus informal processing, identifying where unverified lead enters the chain, and testing whether domestic production reconciles with reported trade and refining statistics. It is *not* intended to produce precise tonnage estimates. Its outputs are best read as approximations and structural diagnostics rather than point figures.
 
-The model traces lead around a closed loop. Batteries are installed into an in-service stock; the stock retires over time according to an effective battery lifetime; retired batteries are collected and processed back into refined lead through four sequential stages; and refined lead is manufactured into new batteries, which return to the stock. At each processing stage the model runs two parallel pathways — a **formal** (regulated, higher-recovery) lane and an **informal** (unregulated, lower-recovery) lane — because the central policy question is what fraction of India's lead moves through channels that cannot be verified safe.
+The model traces lead around a closed loop. Batteries are installed into an in-service stock; the stock retires over time according to an effective battery lifetime; retired batteries are collected and processed back into refined lead through four sequential stages; and refined lead is manufactured into new batteries, which return to the stock. At each processing stage the model runs two parallel pathways — a **formal** (regulated, higher-recovery) lane and an **informal** (unregulated, lower-recovery) lane.
 
-All quantities are expressed in tonnes of contained lead per year. Trade data are drawn from BACI bilateral statistics; refined and primary production from USGS; and the installed-stock series is constructed bottom-up from vehicle-fleet data. The model is calibrated over a smoothed window (a three-year centred rolling mean on the 2018–2023 series) to reduce year-to-year reporting noise.
+All quantities are expressed in tonnes of contained lead per year. Trade data are drawn from BACI bilateral statistics; refined and primary production from the US Geological Survey's global mineral database; and the installed-stock series is a constructed bottom-up estimate from vehicle-fleet data. The model is calibrated over a smoothed window (a three-year centred rolling mean on the 2018–2023 series) to reduce year-to-year reporting noise.
+
+### 1.1 Relationship to comparable methodologies
+
+This model belongs to an established tradition of material-flow analysis (MFA) for lead, and draws on that literature for benchmarks and parameter priors. Dente et al. (2025) reconstruct in-use lead stocks across eleven countries over 1950–2018 and provide independent in-use-stock benchmarks. Dong et al. (2025) present a detailed China MFA for 2000–2023. Tür et al. (2016), through the Oeko-Institut, develop field-based methods for estimating the volumes of used lead-acid batteries generated and recycled in African settings, which inform the approach to the informal sector taken here. The present model is a country-level application in this tradition, combining bilateral trade data with exogenous production and independent stock estimates to characterize a national lead-recycling economy and estimate the possible scale of its informal sector.
 
 ---
 
@@ -90,9 +94,29 @@ A positive value is informal material sold up into the formal sector.
 
 > **OPEN — Crossover sign conventions.** A *negative* `X_s` or `X_r` means the formal lane cannot supply its own share even after the upstream split — a sign that the φ ordering is locally infeasible at that boundary, which the model flags. At manufacturing, `X_m` may be negative for a benign reason: large primary and feed inflows (`M_p + T_f`) can mean the formal lane does not need all formal-refined output. The manufacturing crossover is therefore reported as informational only.
 
-### 2.3 Treatment of specific trade codes
+### 2.3 Product categories and lead-content conversion factors
 
-> **DECISION — HS code handling at manufacturing.** Battery parts (HS 850790) are battery-committed and routed to formal manufacturing with the manufacturing efficiency but *outside* the battery-share β (they are already destined for batteries, so the share discount does not apply). Lead oxides (HS 282410 / 282490) remain in the feed pool and *are* subject to β (litharge has genuine non-battery uses). Finished batteries (HS 850710 / 850720) skip manufacturing entirely and add directly to installation.
+All trade quantities enter the model in tonnes of contained lead. Customs records report gross product mass, which must be converted to lead content using a product-specific factor; the table below gives the factor and basis for each HS code in the model. (BACI provides trade in lead-content terms directly.) In practice these factors may vary considerably, so further analysis will be needed to refine these estimates and account for their uncertainty.
+
+| HS code | Product | Factor | Basis |
+|---|---|---|---|
+| 260700 | Ore / concentrates | 0.60 | Trade-weighted average |
+| 780110 | Refined lead | 1.00 | 99%+ purity |
+| 780191 | Antimonial lead | 0.95 | 1–6% Sb typical |
+| 780199 | Other unwrought lead | 0.95 | Minor alloying |
+| 780200 | Lead scrap | 0.97 | Metallic Pb scrap |
+| 850710 | SLI batteries | 0.65 | 34% Pb + 39% PbO paste |
+| 850720 | Industrial batteries | 0.70 | Thicker plates |
+| 850790 | Battery parts | 0.80 | Mostly plates / grids |
+| 854810 | Waste batteries | 0.70 | Acid typically drained |
+| 282410 | Lead oxides | 0.91 | Stoichiometric (PbO 92.8%) |
+| 282490 | Other Pb compounds | 0.75 | Heterogeneous |
+
+The stage at which each product enters the chain is set by the equations of §2.2: scrap (780200) enters smelting, crude unwrought lead (780199) enters refining, refined lead and lead compounds enter the manufacturing feed pool, and finished batteries (850710 / 850720) bypass manufacturing and add directly to installation.
+
+### 2.4 Treatment of specific trade codes
+
+> **DECISION — HS code handling at manufacturing.** Battery parts (HS 850790) are battery-committed and routed to formal manufacturing with the manufacturing efficiency but *outside* the battery-share β (they are already destined for batteries, so the share discount does not apply). Lead oxides (HS 282410 / 282490) remain in the feed pool and *are* subject to β (litharge could have non-battery uses). Finished batteries (HS 850710 / 850720) skip manufacturing entirely and add directly to installation.
 
 ---
 
@@ -104,7 +128,7 @@ A positive value is informal material sold up into the formal sector.
 | Total collection rate | γ | 0.98 | Literature (total, formal + informal); held fixed |
 | Stock-scaling factor | k | 1.0 | Identity; diagnostic lever |
 | Effective lifetime | τ_eff | 3.68 yr | Stock-weighted harmonic mean of segment lifetimes; field-derated |
-| Formal shares | φ_{b,s,r,m} | 0.70 / 0.80 / 0.90 / 0.95 | Informed defaults, ordered; underdetermined (§5) |
+| Formal shares | φ_{b,s,r,m} | 0.70 / 0.80 / 0.90 / 0.95 | Informed defaults, ordered; underdetermined (§4) |
 | Formal efficiencies | η_·F | 0.95 / 0.97 / 0.99 / 0.98 | Literature / engineering; held fixed |
 | Informal efficiencies | η_·I | 0.70 / 0.60 / 0.95 / 0.95 | Literature + field inference; informal manufacturing least certain |
 | Breaking pre-factor | δ | 0.95 | Recovery at breaking; held fixed |
@@ -113,48 +137,13 @@ Efficiency rows list **break / smelt / refine / mfg** in order.
 
 Two parameters — the battery share β and the effective lifetime τ — carry most of the model's sensitivity and are the roughest first approximations.
 
-The battery share **β = 0.86** is the global-average battery share of refined-lead consumption. India-specific estimates have been lower; a lower β reduces manufacturing output and widens the installation gap, so this is a priority for field refinement. The effective lifetime **τ_eff = 3.68 years** is computed by the same lifetime-weighted harmonic-mean method used in earlier versions of the model, but with shorter, field-derated per-segment life expectancies reflecting India's hot-climate operating conditions (a lead-acid battery's service life falls sharply with sustained high temperature). Both are defensible first approximations and both are explicit targets for the proposed field work.
+The battery share **β = 0.86** is the global-average battery share of refined-lead consumption. India-specific estimates have been lower; a lower β reduces manufacturing output and widens the installation gap, so this is a priority for field refinement. The effective lifetime **τ_eff = 3.68 years** is computed by the same lifetime-weighted harmonic-mean method used in earlier versions of the model, but with shorter, field-derated per-segment life expectancies reflecting India's hot-climate operating conditions (a lead-acid battery's service life falls sharply with sustained high temperature). Both are defensible first approximations and both are explicit targets for further proposed field work.
 
 > **DECISION — Effective lifetime from segment composition.** τ_eff is the stock-weighted harmonic mean of per-segment lifetimes. The harmonic form is required because retirement scales with the reciprocal of lifetime; short-lived segments (e.g. e-rickshaw traction batteries) therefore dominate the retirement flow out of proportion to their share of installed stock.
 
 ---
 
-## 4. Anchors and residuals
-
-The model is disciplined by two independent external anchors. They are **never combined into a single fit score**; each is reported separately, because they constrain different parts of the chain and can move in opposite directions.
-
-### 4.1 The USGS refining floor (one-sided)
-
-> **DECISION — USGS anchors formal refined output as a one-sided floor.** USGS captures *formally reported* secondary refined production. The chain estimates total formal-equivalent output. Because informal refining is not captured in official statistics, the chain is expected to *meet or exceed* USGS: a shortfall below USGS is a failure; an overshoot above it is expected and is reported separately as the implied unrecorded refined lead.
-
-With `U` the USGS secondary figure and sums taken over the fit window:
-
-```
-shortfall_refine = max(0, ΣU − ΣR_F) / ΣU      (penalized, target ≤ 5%)
-overshoot_refine = max(0, ΣR_F − ΣU) / ΣU      (reported, not penalized)
-```
-
-### 4.2 The installation balance (two-sided)
-
-Installation is anchored two-sided against stock-derived demand:
-
-```
-res_install = (Σ INSTALL_impl − Σ INSTALL_tgt) / Σ INSTALL_tgt
-```
-
-### 4.3 Indicators
-
-The model surfaces three indicators that can co-occur and should be read together:
-
-- **Install-ceiling exceeded** — installation demand exceeds what the chain can supply even at full formality; signals that the stock is high relative to chain supply at the current (k, τ).
-- **Refine overshoot present** — formal refined output exceeds USGS; expected under the floor framing, and its magnitude is the implied unrecorded (informal-but-formal-equivalent) refined lead.
-- **Crossover infeasibility** — a negative implied crossover at smelting or refining; signals the formal-share ordering is locally inconsistent.
-
-At the current defaults the model sits close to both anchors: installation within roughly 8% and the refine floor satisfied. This proximity is conditional on the rough β and τ values above and on the constructed stock series; under alternative plausible inputs the two anchors diverge (§6).
-
----
-
-## 5. What the model can and cannot tell you
+## 4. What the model can and cannot tell you
 
 The model is deliberately explicit about *identifiability* — which quantities the data can actually pin down. It has more free parameters than independent anchors: four formal shares constrained by two anchors. As a consequence, the model identifies certain *combinations* of parameters sharply while leaving the individual values underdetermined. This is a property of the data, not a flaw in the method, and the model reports it rather than obscuring it.
 
@@ -164,11 +153,11 @@ Two structural features matter in particular. First, the stock scale and the eff
 
 ---
 
-## 6. Known limitations and open items
+## 5. Known limitations and open items
 
 This is a proof-of-concept model, and its limitations define the work it is intended to launch.
 
-**The stock series is not yet field-validated.** It is constructed bottom-up from vehicle-fleet data and carries known upward biases: registered-versus-active fleet counts (registrations include vehicles no longer on the road), a stock-versus-flow approximation in the segment gross-up, and an unpinned motorcycle-battery lead mass that has high leverage given the size of the two-wheeler fleet. A more accurate installed-lead estimate is the single highest-value input the proposed work would produce.
+**The stock series is not yet well validated against field data.** It is constructed bottom-up from vehicle-fleet data and carries known upward biases: registered-versus-active fleet counts (registrations include vehicles no longer on the road), a stock-versus-flow approximation in the segment gross-up, and an unpinned motorcycle-battery lead mass that has high leverage given the size of the two-wheeler fleet. A more accurate installed-lead estimate is the single highest-value input the proposed work would produce.
 
 > **OPEN — Anchor reconciliation.** The installation and refining anchors are sensitive to the stock series and to β and τ. At the current defaults they sit within roughly 8% of joint balance, but that proximity depends on rough inputs; under alternative plausible values the two anchors diverge, implying that at least one reported input — installed stock, the battery share, or reported secondary production — requires correction. Quantifying and reconciling this tension with field data is a central objective of the proposed work, and the model's structure is designed to localize where the correction must fall.
 
@@ -177,6 +166,16 @@ This is a proof-of-concept model, and its limitations define the work it is inte
 **Formality is modelled stage-by-stage.** Field evidence suggests the boundary may instead be operator-structured: operators tend to be formal or informal across all stages, with some selling of informal output into formal channels. The implied-crossover mechanism approximates this, but a more faithful operator-level structure is a candidate refinement once field data on operator behaviour are available.
 
 > **OPEN — Trade attachment.** The precise point at which formal-only trade enters each stage (before or after the domestic formal/informal split) is a modelling convention rather than an observed quantity. The current treatment adds net trade to the formal lane after the split; field data on the formality of importers and exporters would let this be set empirically.
+
+**Vehicle imports and exports are not yet accounted for.** The model currently treats the installed-stock series as the basis for retirement and does not separately track lead entering or leaving the country embodied in whole vehicles (new or used vehicle trade). We judge that this flow is unlikely to shift the balance of the model materially at present, and have intentionally deferred it; it will be incorporated in the next layer of refinement.
+
+---
+
+## 6. References
+
+- Dente, S.M.R., et al. (2025). *Assessing Lead Waste and Secondary Resources in Major Consumer Nations: A Vanishing Resource or a Toxic Legacy?* Resources, 14(4), 52. MDPI. <https://www.mdpi.com/2079-9276/14/4/52>
+- Dong, D., et al. (2025). *Uncovering the anthropogenic lead cycle in China from 2000 to 2023: a dynamic material flow analysis.* Resources, Conservation & Recycling. <https://www.sciencedirect.com/science/article/abs/pii/S0921344926001102>
+- Tür, M., Manhart, A., & Schleicher, T. (2016). *Generation of Used Lead-Acid Batteries in Africa — Estimating the Volumes.* Institute of Applied Ecology (Oeko-Institut), Freiburg. <https://econet.international/fileadmin/user_upload/ULAB_Generation_African_Countries_final_2016.pdf>
 
 ---
 
@@ -198,4 +197,4 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-*End of overview — draft for technical review*
+*Draft working paper — not for external distribution*
