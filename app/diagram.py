@@ -11,10 +11,15 @@ and the "(1-β) non-battery" off-take sit at the refined-pool level (between
 REFINE and MFG). USGS-secondary is a one-sided floor on REFINE_SEC_F. The
 Installation node feeds back into Stock (closed loop).
 
-The diagram is rendered as an embedded **React Flow** view loaded from esm.sh
-inside an `st.components.v1.html` iframe — no PyPI dependency, drag/zoom/hover
-work natively. Node detail (formula, variables, assumptions) is driven from
-the selectbox in the right column (the iframe is one-way — click events can't
+The diagram is offered in three renderers, exposed as nested sub-tabs:
+  * **React Flow** (esm.sh) — the original interactive view.
+  * **vis-network** (unpkg) — vis.js network graph with the same node/edge
+    catalogue.
+  * **D3.js** (d3js.org) — hand-drawn SVG using D3 v7, with pan/zoom + drag.
+
+Each renderer is a self-contained HTML page embedded via `st.components.v1.html`
+— no PyPI dependency. Node detail (formula, variables, assumptions) is driven
+from the selectbox below the diagram (iframes are one-way — click events can't
 round-trip back to Python without a custom Streamlit component).
 
 A static Plotly diagram with the same topology remains available as a fallback
@@ -730,6 +735,336 @@ def _react_flow_html(state: dict, year: int, height: int = 620) -> str:
 
 
 # ============================================================================
+# vis-network embed via CDN (st.components.v1.html iframe)
+# ============================================================================
+
+BORDER_BY_KIND = {
+    "formal":   "#1565c0",
+    "informal": "#e65100",
+    "collect":  "#f9a825",
+    "install":  "#1b5e20",
+    "trade":    "#2e7d32",
+    "anchor":   "#666",
+}
+
+
+def _build_common_payload(state: dict, year: int) -> list[dict]:
+    """Per-node payload shared by the vis-network and D3 renderers.
+
+    Uses the same X/Y grid as the React Flow embed so all three renderers
+    have visually equivalent layouts.
+    """
+    chain = state["chain"]; arr = state["arr"]
+    out = []
+    for n in NODES:
+        x, y = n["pos"]
+        kind = n["kind"]
+        bg, fg = NODE_COLOURS.get(kind, ("#888", "#fff"))
+        border = BORDER_BY_KIND.get(kind, "#222")
+        vol = _node_volume_at_year(n, chain, arr, year)
+        vol_line = f"\n{_fmt_kt(vol)}" if vol is not None else ""
+        label = f"{n['label']}{vol_line}"
+        shape = "ellipse" if kind in ("collect", "install", "anchor") else "box"
+        out.append({
+            "id":        n["id"],
+            "label":     label,
+            "x":         int(x * 200),
+            "y":         int(y * 130) + 220,
+            "shape":     shape,
+            "fill":      bg,
+            "border":    border,
+            "textColor": fg,
+        })
+    return out
+
+
+def _vis_network_html(state: dict, year: int, height: int = 620) -> str:
+    """Self-contained HTML that loads vis-network from unpkg and renders
+    the same topology as the React Flow embed."""
+    common = _build_common_payload(state, year)
+    vn_nodes = []
+    for c in common:
+        vn_nodes.append({
+            "id":    c["id"],
+            "label": c["label"],
+            "x":     c["x"],
+            "y":     c["y"],
+            "shape": c["shape"],
+            "color": {
+                "background": c["fill"],
+                "border":     c["border"],
+                "highlight":  {"background": c["fill"], "border": c["border"]},
+                "hover":      {"background": c["fill"], "border": c["border"]},
+            },
+            "font": {
+                "color": c["textColor"], "size": 12, "face": "sans-serif",
+                "multi": False, "vadjust": 0,
+            },
+            "widthConstraint":  {"minimum": 140, "maximum": 180},
+            "heightConstraint": {"minimum": 46},
+            "borderWidth": 2,
+            "margin":      {"top": 8, "right": 10, "bottom": 8, "left": 10},
+        })
+    vn_edges = []
+    for src, tgt, kind in EDGES:
+        color = EDGE_COLOURS.get(kind, "#333")
+        vn_edges.append({
+            "id":      f"{src}-{tgt}",
+            "from":    src,
+            "to":      tgt,
+            "arrows":  {"to": {"enabled": True, "scaleFactor": 0.7}},
+            "color":   {"color": color, "highlight": color, "hover": color},
+            "dashes":  kind in ("crossover", "anchor"),
+            "smooth":  {"enabled": True, "type": "cubicBezier",
+                        "forceDirection": "horizontal", "roundness": 0.4},
+            "width":   1.6,
+        })
+    nodes_json = json.dumps(vn_nodes)
+    edges_json = json.dumps(vn_edges)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>India parallel chain — vis-network</title>
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.9/styles/vis-network.min.css">
+  <style>
+    html, body {{ margin: 0; padding: 0; height: 100%;
+                   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                                Roboto, sans-serif; overflow: hidden; }}
+    #net {{ width: 100%; height: {height}px; background: #fff; }}
+    .lane-label {{
+      position: absolute; left: 8px; padding: 4px 8px; font-weight: 600;
+      font-size: 12px; border-radius: 4px; z-index: 10;
+      background: rgba(255,255,255,0.85);
+    }}
+    .lane-label.formal   {{ top: 220px; color: #1565c0; }}
+    .lane-label.informal {{ top: 350px; color: #e65100; }}
+    .fallback {{ padding: 20px; color: #b71c1c; }}
+  </style>
+</head>
+<body>
+  <div id="net">
+    <div class="fallback" id="fallback">
+      Loading vis-network from unpkg…<br>
+      <small>If this message stays, the network is blocking unpkg — try
+      the React Flow tab or the Plotly fallback.</small>
+    </div>
+  </div>
+  <div class="lane-label formal">FORMAL</div>
+  <div class="lane-label informal">INFORMAL</div>
+  <script>
+    try {{
+      if (typeof vis === "undefined") throw new Error("vis library did not load");
+      const container = document.getElementById("net");
+      container.innerHTML = "";
+      const nodes = new vis.DataSet({nodes_json});
+      const edges = new vis.DataSet({edges_json});
+      const options = {{
+        physics:   {{ enabled: false }},
+        layout:    {{ improvedLayout: false }},
+        interaction: {{
+          hover: true, dragNodes: true, dragView: true,
+          zoomView: true, tooltipDelay: 200, multiselect: false,
+        }},
+      }};
+      const network = new vis.Network(container, {{ nodes, edges }}, options);
+      network.once("afterDrawing", () => network.fit({{ animation: false }}));
+    }} catch (err) {{
+      const fb = document.getElementById("fallback");
+      if (fb) fb.innerHTML =
+        "<b>vis-network failed to load.</b><br><small>"
+        + String(err) + "</small><br>"
+        + "<small>Reload the page; if the problem persists, "
+        + "the deploy's network may be blocking unpkg.</small>";
+    }}
+  </script>
+</body>
+</html>"""
+
+
+# ============================================================================
+# D3.js embed via CDN (st.components.v1.html iframe)
+# ============================================================================
+
+def _d3_html(state: dict, year: int, height: int = 620) -> str:
+    """Self-contained HTML that loads D3 v7 from d3js.org and renders an
+    SVG version of the same topology. Supports pan/zoom + per-node drag."""
+    common = _build_common_payload(state, year)
+    d3_nodes = common  # already in the shape D3 expects
+    d3_edges = []
+    for src, tgt, kind in EDGES:
+        d3_edges.append({
+            "id":     f"{src}-{tgt}",
+            "source": src,
+            "target": tgt,
+            "color":  EDGE_COLOURS.get(kind, "#333"),
+            "dashed": kind in ("crossover", "anchor"),
+        })
+    nodes_json = json.dumps(d3_nodes)
+    edges_json = json.dumps(d3_edges)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>India parallel chain — D3.js</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    html, body {{ margin: 0; padding: 0; height: 100%;
+                   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                                Roboto, sans-serif; overflow: hidden; }}
+    #chart {{ width: 100%; height: {height}px; background: #fff; }}
+    svg {{ width: 100%; height: 100%; user-select: none; cursor: grab; }}
+    svg:active {{ cursor: grabbing; }}
+    .node rect, .node ellipse {{ stroke-width: 2; }}
+    .node {{ cursor: grab; }}
+    .node:active {{ cursor: grabbing; }}
+    .node text {{ pointer-events: none; text-anchor: middle;
+                   font-size: 10.5px; font-family: sans-serif; }}
+    .edge {{ fill: none; stroke-width: 1.5; }}
+    .lane-label {{ font-weight: 700; font-size: 13px; }}
+    .fallback {{ padding: 20px; color: #b71c1c; }}
+  </style>
+</head>
+<body>
+  <div id="chart">
+    <div class="fallback" id="fallback">
+      Loading D3 from d3js.org…<br>
+      <small>If this message stays, the network is blocking d3js.org — try
+      the React Flow tab or the Plotly fallback.</small>
+    </div>
+  </div>
+  <script>
+    try {{
+      if (typeof d3 === "undefined") throw new Error("d3 library did not load");
+      document.getElementById("fallback").remove();
+
+      const nodes    = {nodes_json};
+      const edges    = {edges_json};
+      const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+      const chart = d3.select("#chart");
+      const svg = chart.append("svg")
+        .attr("viewBox", "-120 -110 1600 700")
+        .attr("preserveAspectRatio", "xMidYMid meet");
+
+      // One arrow marker per edge colour so tips inherit the stroke colour
+      const defs = svg.append("defs");
+      const markerId = c => "arrow-" + c.replace("#", "");
+      [...new Set(edges.map(e => e.color))].forEach(c => {{
+        defs.append("marker")
+          .attr("id",           markerId(c))
+          .attr("viewBox",      "0 -5 10 10")
+          .attr("refX",         8).attr("refY", 0)
+          .attr("markerWidth",  7).attr("markerHeight", 7)
+          .attr("orient",       "auto")
+          .append("path")
+          .attr("d",    "M0,-5L10,0L0,5")
+          .attr("fill", c);
+      }});
+
+      const g = svg.append("g");
+      svg.call(d3.zoom().scaleExtent([0.3, 3])
+        .on("zoom", (e) => g.attr("transform", e.transform)));
+
+      // Lane labels
+      g.append("text").attr("class", "lane-label")
+        .attr("x", -90).attr("y", 224).attr("fill", "#1565c0")
+        .text("FORMAL");
+      g.append("text").attr("class", "lane-label")
+        .attr("x", -90).attr("y", 432).attr("fill", "#e65100")
+        .text("INFORMAL");
+
+      // Approximate half-extent used to trim edges at node boundaries.
+      const boxW = 160, boxH = 62, ellRx = 92, ellRy = 34;
+      function halfExtent(n, dxU, dyU) {{
+        if (n.shape === "ellipse") {{
+          // Distance from centre to ellipse edge along (dxU, dyU)
+          const t = Math.hypot(dxU / ellRx, dyU / ellRy) || 1;
+          return 1 / t;
+        }}
+        // Rectangle: use larger of the two axis-aligned intercepts
+        const hx = Math.abs(dxU) < 1e-6 ? Infinity : (boxW / 2) / Math.abs(dxU);
+        const hy = Math.abs(dyU) < 1e-6 ? Infinity : (boxH / 2) / Math.abs(dyU);
+        return Math.min(hx, hy);
+      }}
+      function edgePath(e) {{
+        const s = nodeById.get(e.source);
+        const t = nodeById.get(e.target);
+        const dx = t.x - s.x, dy = t.y - s.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const ux = dx / dist, uy = dy / dist;
+        const rS = halfExtent(s, ux, uy);
+        const rT = halfExtent(t, ux, uy);
+        const x1 = s.x + ux * rS, y1 = s.y + uy * rS;
+        const x2 = t.x - ux * rT, y2 = t.y - uy * rT;
+        // Bezier control point offset perpendicular to the segment for a
+        // gentle curve; helps parallel edges (informal→formal crossovers)
+        // stay distinguishable.
+        const perpX = -uy, perpY = ux;
+        const bow = Math.min(30, dist * 0.15);
+        const cx = (x1 + x2) / 2 + perpX * bow;
+        const cy = (y1 + y2) / 2 + perpY * bow;
+        return `M${{x1}},${{y1}}Q${{cx}},${{cy}} ${{x2}},${{y2}}`;
+      }}
+
+      // Edges first so nodes sit on top
+      const edgeSel = g.selectAll(".edge")
+        .data(edges).enter().append("path")
+        .attr("class",             "edge")
+        .attr("d",                 edgePath)
+        .attr("stroke",            d => d.color)
+        .attr("stroke-dasharray",  d => d.dashed ? "6 4" : null)
+        .attr("marker-end",        d => `url(#${{markerId(d.color)}})`);
+
+      // Nodes
+      const nodeSel = g.selectAll(".node")
+        .data(nodes).enter().append("g")
+        .attr("class",     "node")
+        .attr("transform", d => `translate(${{d.x}},${{d.y}})`)
+        .call(d3.drag()
+          .on("drag", function (e, d) {{
+            d.x = e.x; d.y = e.y;
+            d3.select(this).attr("transform", `translate(${{d.x}},${{d.y}})`);
+            edgeSel.attr("d", edgePath);
+          }}));
+
+      nodeSel.each(function (d) {{
+        const el = d3.select(this);
+        if (d.shape === "ellipse") {{
+          el.append("ellipse")
+            .attr("rx", ellRx).attr("ry", ellRy)
+            .attr("fill", d.fill).attr("stroke", d.border);
+        }} else {{
+          el.append("rect")
+            .attr("x", -boxW / 2).attr("y", -boxH / 2)
+            .attr("width", boxW).attr("height", boxH).attr("rx", 8)
+            .attr("fill", d.fill).attr("stroke", d.border);
+        }}
+        const lines = String(d.label).split("\\n");
+        const dyStart = -((lines.length - 1) * 6);
+        const text = el.append("text")
+          .attr("fill", d.textColor)
+          .attr("y",    dyStart);
+        lines.forEach((line, i) => {{
+          text.append("tspan")
+            .attr("x", 0)
+            .attr("dy", i === 0 ? 0 : "1.2em")
+            .text(line);
+        }});
+      }});
+    }} catch (err) {{
+      const chart = document.getElementById("chart");
+      chart.innerHTML =
+        "<div class='fallback'><b>D3 failed to load.</b><br><small>"
+        + String(err) + "</small></div>";
+    }}
+  </script>
+</body>
+</html>"""
+
+
+# ============================================================================
 # Legacy streamlit-flow library detection (kept for future, currently unused)
 # ============================================================================
 
@@ -1059,9 +1394,21 @@ def render() -> None:
             index=len(years) - 1, key="diagram_year",
         ))
 
-    # ----- Flow diagram (full width) ---------------------------------------
-    html = _react_flow_html(state, year, height=640)
-    components.html(html, height=660, scrolling=False)
+    # ----- Flow diagram (full width, three renderer choices) ---------------
+    st.caption(
+        "Same topology, three JS libraries — pick a tab. All three load "
+        "their library from a public CDN inside the iframe (no PyPI deps)."
+    )
+    rf_tab, vn_tab, d3_tab = st.tabs(["React Flow", "vis-network", "D3.js"])
+    with rf_tab:
+        components.html(_react_flow_html(state, year, height=640),
+                        height=660, scrolling=False)
+    with vn_tab:
+        components.html(_vis_network_html(state, year, height=640),
+                        height=660, scrolling=False)
+    with d3_tab:
+        components.html(_d3_html(state, year, height=640),
+                        height=660, scrolling=False)
 
     # ----- Node detail (full width, BELOW the diagram) ---------------------
     st.divider()
