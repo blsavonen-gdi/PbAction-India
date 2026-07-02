@@ -4,6 +4,13 @@ numpy>=1.24
 plotly>=5.18
 scipy>=1.10
 
+# Used for the "vis-network (interactive)" sub-tab on Tab 1 — a bidirectional
+# Streamlit component that returns clicked node ids to Python, so the shared
+# node-detail panel below the diagram can be driven by clicking the graph.
+# The other three renderers (React Flow / vis-network CDN / D3) are one-way
+# HTML embeds and work without this package.
+streamlit-agraph>=0.0.45
+
 # Optional: interactive React-Flow diagram on Tab 1. The Plotly fallback in
 # app/diagram.py is a faithful match for the PDF topology, so the app is
 # fully usable without these. Uncomment ONE to enable the interactive view.

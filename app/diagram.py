@@ -1190,6 +1190,65 @@ def _flow_diagram_chrisdelclea(state: dict, year: int, ns: dict):
 
 
 # ============================================================================
+# streamlit-agraph — vis-network as a proper Streamlit component
+# ============================================================================
+#
+# Unlike the CDN embed above (one-way iframe via components.html), agraph is
+# a bidirectional custom component: clicking a node returns its id to Python
+# on the next rerun. We use that to drive the shared node-detail selectbox.
+
+def _agraph_diagram(state: dict, year: int, height: int = 640):
+    """Render the parallel-chain diagram with streamlit-agraph.
+
+    Returns the id of the most-recently-clicked node (string), or None.
+    """
+    from streamlit_agraph import agraph, Node, Edge, Config  # local import — optional dep
+
+    common = _build_common_payload(state, year)
+
+    nodes = []
+    for c in common:
+        nodes.append(Node(
+            id=c["id"],
+            label=c["label"],
+            shape=c["shape"],
+            color={"background": c["fill"], "border": c["border"],
+                   "highlight": {"background": c["fill"], "border": c["border"]},
+                   "hover":     {"background": c["fill"], "border": c["border"]}},
+            font={"color": c["textColor"], "size": 12,
+                  "face": "sans-serif", "multi": False},
+            x=c["x"], y=c["y"],
+            borderWidth=2,
+            widthConstraint={"minimum": 140, "maximum": 180},
+            heightConstraint={"minimum": 46},
+            margin={"top": 8, "right": 10, "bottom": 8, "left": 10},
+        ))
+
+    edges = []
+    for src, tgt, kind in EDGES:
+        stroke = EDGE_COLOURS.get(kind, "#333")
+        edges.append(Edge(
+            source=src, target=tgt,
+            color={"color": stroke, "highlight": stroke, "hover": stroke},
+            dashes=kind in ("crossover", "anchor"),
+            smooth={"enabled": True, "type": "cubicBezier",
+                    "forceDirection": "horizontal", "roundness": 0.4},
+            width=1.6,
+            arrows={"to": {"enabled": True, "scaleFactor": 0.7}},
+        ))
+
+    config = Config(
+        width="100%", height=height,
+        directed=True, physics=False, hierarchical=False,
+        # Pass-through vis-network options via **kwargs
+        interaction={"hover": True, "dragNodes": True, "dragView": True,
+                     "zoomView": True, "tooltipDelay": 200, "multiselect": False},
+        layout={"improvedLayout": False},
+    )
+    return agraph(nodes=nodes, edges=edges, config=config)
+
+
+# ============================================================================
 # Side panel — node detail
 # ============================================================================
 
@@ -1394,18 +1453,38 @@ def render() -> None:
             index=len(years) - 1, key="diagram_year",
         ))
 
-    # ----- Flow diagram (full width, three renderer choices) ---------------
+    # Seed the shared "selected node" state BEFORE any widget with the same
+    # key is instantiated (streamlit-agraph clicks and the selectbox below
+    # both read/write it).
+    if "diagram_node" not in st.session_state:
+        st.session_state["diagram_node"] = "install_implied"
+
+    # ----- Flow diagram (full width, four renderer choices) ----------------
     st.caption(
-        "Same topology, three JS libraries — pick a tab. All three load "
-        "their library from a public CDN inside the iframe (no PyPI deps)."
+        "Same topology, four renderers — pick a tab. React Flow / vis-network "
+        "(CDN) / D3.js are one-way HTML embeds; **vis-network (interactive)** "
+        "uses streamlit-agraph, so clicking a node updates the detail panel "
+        "below."
     )
-    rf_tab, vn_tab, d3_tab = st.tabs(["React Flow", "vis-network", "D3.js"])
+    rf_tab, vn_tab, ag_tab, d3_tab = st.tabs([
+        "React Flow", "vis-network (CDN)",
+        "vis-network (interactive)", "D3.js",
+    ])
     with rf_tab:
         components.html(_react_flow_html(state, year, height=640),
                         height=660, scrolling=False)
     with vn_tab:
         components.html(_vis_network_html(state, year, height=640),
                         height=660, scrolling=False)
+    with ag_tab:
+        st.caption("Click a node to load its details below.")
+        clicked = _agraph_diagram(state, year, height=640)
+        # Only apply a "new" click — otherwise agraph's remembered value
+        # would clobber a user's subsequent selectbox pick on every rerun.
+        if isinstance(clicked, str) and clicked:
+            if clicked != st.session_state.get("_last_agraph_click"):
+                st.session_state["_last_agraph_click"] = clicked
+                st.session_state["diagram_node"] = clicked
     with d3_tab:
         components.html(_d3_html(state, year, height=640),
                         height=660, scrolling=False)
@@ -1416,7 +1495,6 @@ def render() -> None:
     node_choices = [n["id"] for n in NODES]
     chosen = st.selectbox(
         "Pick a node", options=node_choices,
-        index=node_choices.index("install_implied"),
         key="diagram_node",
         format_func=lambda i: next(n["label"].replace("\n", " — ")
                                    for n in NODES if n["id"] == i),
